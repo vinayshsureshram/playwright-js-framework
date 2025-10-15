@@ -3,6 +3,7 @@ pipeline {
 
     tools {
         nodejs 'NodeJS_22'  // Make sure you configure NodeJS in Jenkins tools
+        allure 'Allure_2.29.0'  // Make sure you configure Allure in Jenkins tools
     }
 
     environment {
