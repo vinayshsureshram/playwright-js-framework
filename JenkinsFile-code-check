@@ -14,7 +14,7 @@ pipeline {
     }
 
     triggers {
-        // Trigger automatically when PR is opened or updated
+        // Trigger automatically when PR is opened or updated - Just a test
         githubPullRequest()
     }
 
