@@ -1,0 +1,80 @@
+pipeline {
+    agent any
+
+    tools {
+        nodejs 'NodeJS_22'  // Make sure you configure NodeJS in Jenkins tools
+        allure 'Allure_2.29.0'  // Make sure you configure Allure in Jenkins tools
+    }
+
+
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+        ansiColor('xterm')
+    }
+
+    triggers {
+        // Trigger automatically when PR is opened or updated
+        githubPullRequest()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                echo "Installing npm dependencies..."
+                sh 'npm ci'
+            }
+        }
+
+        stage('Code Quality - ESLint') {
+            steps {
+                echo "Running ESLint static analysis..."
+                sh 'npx eslint . --ext .js,.ts -f junit -o eslint-report.xml || true'
+            }
+            post {
+                always {
+                    recordIssues tool: eslint(pattern: '**/eslint-report.xml'), qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
+                }
+            }
+        }
+
+        stage('Post PR Checklist') {
+            when {
+                expression { env.CHANGE_ID != null }
+            }
+            steps {
+                echo "Posting checklist to the Pull Request via Jenkins GitHub integration..."
+
+                // This message will appear directly on the GitHub PR as a build status/check summary
+                githubNotify context: 'PR Checklist', description: '''
+                ### ✅ PR Checklist
+
+                - [ ] All PR feedback addressed  
+                - [ ] Tests are passing locally  
+                - [ ] All code guidelines are followed
+                ''', status: 'SUCCESS'
+            }
+        }
+    }
+
+    post {
+        success {
+            githubNotify context: 'ESLint Check', description: '✅ ESLint checks passed', status: 'SUCCESS'
+            echo "✅ ESLint checks passed and checklist posted on PR."
+        }
+        unstable {
+            githubNotify context: 'ESLint Check', description: '⚠️ ESLint warnings found', status: 'UNSTABLE'
+            echo "⚠️ ESLint warnings found. Review code quality report in Jenkins."
+        }
+        failure {
+            githubNotify context: 'ESLint Check', description: '❌ Code validation failed', status: 'FAILURE'
+            echo "❌ Build failed. Check Jenkins console for details."
+        }
+    }
+}
