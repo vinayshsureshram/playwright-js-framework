@@ -2,10 +2,8 @@ pipeline {
     agent any
 
     tools {
-        nodejs 'NodeJS_22'  // Make sure you configure NodeJS in Jenkins tools-test
-        allure 'Allure_2.29.0'  // Make sure you configure Allure in Jenkins tools
+        nodejs 'NodeJS_22'
     }
-
 
     options {
         disableConcurrentBuilds()
@@ -13,14 +11,10 @@ pipeline {
         ansiColor('xterm')
     }
 
-    triggers {
-        // Trigger automatically when PR is opened or updated - Just a test
-        githubPullRequest()
-    }
-
     stages {
         stage('Checkout') {
             steps {
+                // Multibranch handles SCM automatically
                 checkout scm
             }
         }
@@ -39,42 +33,47 @@ pipeline {
             }
             post {
                 always {
-                    recordIssues tool: eslint(pattern: '**/eslint-report.xml'), qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
+                    recordIssues tool: eslint(pattern: '**/eslint-report.xml'),
+                                 qualityGates: [[threshold: 1, type: 'TOTAL', unstable: true]]
                 }
             }
         }
 
         stage('Post PR Checklist') {
             when {
-                expression { env.CHANGE_ID != null }
+                expression { env.CHANGE_ID != null }  // Only runs on PRs
             }
             steps {
-                echo "Posting checklist to the Pull Request via Jenkins GitHub integration..."
-
-                // This message will appear directly on the GitHub PR as a build status/check summary
+                echo "Posting checklist to GitHub PR..."
                 githubNotify context: 'PR Checklist', description: '''
-                ### ✅ PR Checklist
+### ✅ PR Checklist
 
-                - [ ] All PR feedback addressed  
-                - [ ] Tests are passing locally  
-                - [ ] All code guidelines are followed
-                ''', status: 'SUCCESS'
+- [ ] All PR feedback addressed  
+- [ ] Tests are passing locally  
+- [ ] All code guidelines are followed
+''', status: 'SUCCESS'
             }
         }
     }
 
     post {
         success {
-            githubNotify context: 'ESLint Check', description: '✅ ESLint checks passed', status: 'SUCCESS'
-            echo "✅ ESLint checks passed and checklist posted on PR."
+            githubNotify context: 'ESLint Check',
+                         description: '✅ ESLint checks passed',
+                         status: 'SUCCESS'
+            echo "✅ Build successful"
         }
         unstable {
-            githubNotify context: 'ESLint Check', description: '⚠️ ESLint warnings found', status: 'UNSTABLE'
-            echo "⚠️ ESLint warnings found. Review code quality report in Jenkins."
+            githubNotify context: 'ESLint Check',
+                         description: '⚠️ ESLint warnings found',
+                         status: 'UNSTABLE'
+            echo "⚠️ Build unstable due to ESLint warnings"
         }
         failure {
-            githubNotify context: 'ESLint Check', description: '❌ Code validation failed', status: 'FAILURE'
-            echo "❌ Build failed. Check Jenkins console for details."
+            githubNotify context: 'ESLint Check',
+                         description: '❌ Build failed',
+                         status: 'FAILURE'
+            echo "❌ Build failed"
         }
     }
 }
